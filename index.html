@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Aurum Campo - Faz Castanha</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="styles.css" />
+<meta name="theme-color" content="#1a1a1a" />
+</head>
+<body>
+
+<div id="loginGate" style="padding:60px 20px;max-width:400px;margin:0 auto">
+  <div class="card">
+    <div style="text-align:center;margin-bottom:6px"><img src="logo_vertical.png" alt="Aurum" style="height:60px" /></div>
+    <h2>Identificação</h2>
+    <label>Seu nome</label>
+    <input type="text" id="loginNome" placeholder="Nome completo" />
+    <label>Código de acesso</label>
+    <input type="password" id="loginCodigo" placeholder="Código fornecido pelo administrador" />
+    <button class="btn-primary" id="loginBtn" style="margin-top:14px">Entrar</button>
+    <div id="loginError" style="color:#c62828;font-size:12.5px;margin-top:8px"></div>
+    <div id="loginSetupHint" style="font-size:11.5px;color:#888;margin-top:10px;display:none">
+      Primeiro uso neste aparelho: configure o link de sincronização antes de entrar.
+      <a href="#" id="openConfigFromLogin" style="color:#b8860b;font-weight:700">Configurar agora</a>
+    </div>
+  </div>
+</div>
+
+<div id="appShell" style="display:none">
+
+<header>
+  <img src="logo_vertical.png" alt="Aurum" style="height:40px" />
+  <h1>Faz Castanha — Coleta de Campo</h1>
+  <span id="statusPill" class="status-pill">offline</span>
+  <a href="#" id="logoutBtn" style="color:#ccc;font-size:11px;margin-left:8px">trocar usuário</a>
+</header>
+
+<div class="tabbar">
+  <button id="tabColeta" class="active">📝 Coletar amostra</button>
+  <button id="tabMapa">🧭 Mapa offline (malha)</button>
+</div>
+
+<div id="mapaOfflineWrap">
+  <div class="card">
+    <h2>Malha e linhas planejadas</h2>
+    <canvas id="malhaCanvas" width="600" height="600"></canvas>
+    <div class="legenda">
+      <span><i style="background:#1976d2"></i> Linhas da malha</span>
+      <span><i style="background:#757575"></i> Pontos já coletados (GPS)</span>
+      <span><i style="background:#c62828"></i> Você está aqui</span>
+    </div>
+    <div style="font-size:11.5px;color:#888;margin-top:8px" id="malhaInfo">Carregando malha…</div>
+  </div>
+</div>
+
+<main id="coletaWrap">
+
+  <div id="setupBanner" class="setup-banner" style="display:none">
+    Configure o link de sincronização (URL do painel Google) antes de usar em campo.
+    <a href="#" id="openConfig">Configurar agora</a>
+  </div>
+
+  <div class="card" id="configCard" style="display:none">
+    <h2>Configuração de sincronização</h2>
+    <label>URL do Web App (Apps Script)</label>
+    <input type="url" id="apiUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" />
+    <button class="btn-primary" id="saveConfig">Salvar configuração</button>
+  </div>
+
+  <form id="collectForm">
+    <div class="card">
+      <h2>Identificação</h2>
+      <label>ID da amostra (ex: CAS-AL1-SOL-016)</label>
+      <input type="text" id="amostraId" required placeholder="CAS-AL1-SOL-016" autocapitalize="characters" />
+
+      <div class="row2">
+        <div>
+          <label>Alvo</label>
+          <select id="alvo">
+            <option>AL1</option><option>AL2</option><option>AL3</option>
+            <option>AL4</option><option>AL5</option>
+          </select>
+        </div>
+        <div>
+          <label>Nº linha</label>
+          <input type="text" id="linha" placeholder="L01" />
+        </div>
+      </div>
+
+      <label>Tipo de amostra</label>
+      <select id="tipoAmostra">
+        <option>Solo</option><option>Rocha</option><option>Sedimento de Corrente</option>
+        <option>Concentrado de Bateia</option><option>Testemunho</option><option>Trincheira</option>
+      </select>
+
+      <label>Tipo de controle</label>
+      <select id="tipoControle">
+        <option>Normal</option>
+        <option>Duplicata de Campo (Triplicata)</option>
+        <option>Branco (Sílica)</option>
+        <option>Padrão (PD)</option>
+      </select>
+      <div id="ctrlHint" style="font-size:11.5px;color:#b8860b;margin-top:4px;display:none">
+        Sugestão automática pelo número da amostra — confirme antes de salvar.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Localização (GPS)</h2>
+      <div class="gps-box">
+        <span id="gpsText">Aguardando GPS…</span>
+        <button type="button" id="refreshGps" style="width:auto;padding:6px 10px;background:#eee;color:#333;">↻</button>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <div>
+          <label>Profundidade da coleta (cm)</label>
+          <input type="number" id="profundidade" min="0" step="1" placeholder="30" />
+        </div>
+        <div>
+          <label>Data/hora</label>
+          <input type="text" id="dataColeta" readonly />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Descrição do material</h2>
+      <textarea id="descricao" placeholder="Cor, textura, presença de fragmentos, horizonte de solo, etc."></textarea>
+      <label>Responsável pela coleta</label>
+      <input type="text" id="responsavel" placeholder="Nome do geólogo" />
+    </div>
+
+    <div class="card">
+      <h2>Registro fotográfico</h2>
+      <label class="photo-input" id="photoLabel">
+        📷 Toque para tirar/anexar foto
+        <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" />
+      </label>
+      <img id="photoPreview" class="photo-preview" />
+    </div>
+
+    <button type="submit" class="btn-primary">Salvar amostra (fica salvo no aparelho)</button>
+  </form>
+
+  <div class="card" style="margin-top:16px">
+    <h2>Amostras pendentes / sincronizadas</h2>
+    <ul class="pending-list" id="pendingList"></ul>
+  </div>
+
+</main>
+
+<div class="footer-bar">
+  <span class="count" id="pendingCount">0 pendentes</span>
+  <button class="btn-sync" id="syncBtn">Sincronizar agora</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
