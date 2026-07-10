@@ -44,13 +44,31 @@
 <div id="mapaOfflineWrap">
   <div class="card">
     <h2>Malha e linhas planejadas</h2>
-    <canvas id="malhaCanvas" width="600" height="600"></canvas>
+    <div style="position:relative">
+      <canvas id="malhaCanvas" width="600" height="600"></canvas>
+      <div style="position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px">
+        <button type="button" id="zoomIn" style="width:34px;height:34px;border-radius:8px;border:none;background:#1a1a1a;color:#fff;font-size:18px;font-weight:700;cursor:pointer">+</button>
+        <button type="button" id="zoomOut" style="width:34px;height:34px;border-radius:8px;border:none;background:#1a1a1a;color:#fff;font-size:18px;font-weight:700;cursor:pointer">–</button>
+        <button type="button" id="zoomReset" style="width:34px;height:34px;border-radius:8px;border:none;background:#fff;border:1px solid #ddd;font-size:13px;cursor:pointer">⤢</button>
+      </div>
+    </div>
     <div class="legenda">
       <span><i style="background:#1976d2"></i> Linhas da malha</span>
-      <span><i style="background:#757575"></i> Pontos já coletados (GPS)</span>
+      <span><i style="background:#9e9e9e"></i> Pontos GPS (referência)</span>
+      <span><i style="background:#f9a825"></i> Coletado (pendente)</span>
+      <span><i style="background:#2e7d32"></i> Coletado (sincronizado)</span>
       <span><i style="background:#c62828"></i> Você está aqui</span>
     </div>
     <div style="font-size:11.5px;color:#888;margin-top:8px" id="malhaInfo">Carregando malha…</div>
+  </div>
+</div>
+
+<div id="pontoDetalheModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="max-width:380px;width:90%;max-height:85vh;overflow:auto">
+    <h2 id="pontoDetalheTitulo">Amostra</h2>
+    <div id="pontoDetalheInfo" style="font-size:13px;color:#333"></div>
+    <img id="pontoDetalheFoto" style="width:100%;border-radius:10px;margin-top:10px;display:none" />
+    <button type="button" id="fecharPontoDetalhe" style="margin-top:14px;padding:10px;border:none;border-radius:8px;background:#1a1a1a;color:#fff;font-weight:700;cursor:pointer">Fechar</button>
   </div>
 </div>
 
