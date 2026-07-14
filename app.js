@@ -9,7 +9,7 @@ const tabMapa = document.getElementById("tabMapa");
 const coletaWrap = document.getElementById("coletaWrap");
 const mapaWrap = document.getElementById("mapaOfflineWrap");
 tabColeta.onclick = () => { tabColeta.classList.add("active"); tabMapa.classList.remove("active"); coletaWrap.style.display="block"; mapaWrap.style.display="none"; };
-tabMapa.onclick = () => { tabMapa.classList.add("active"); tabColeta.classList.remove("active"); coletaWrap.style.display="none"; mapaWrap.style.display="block"; atualizarPontosNoMapa(); drawMalha(); };
+tabMapa.onclick = () => { tabMapa.classList.add("active"); tabColeta.classList.remove("active"); coletaWrap.style.display="none"; mapaWrap.style.display="block"; atualizarPontosNoMapa(); resetView(); drawMalha(); };
 
 // ---------- Mapa offline vetorial (sem imagem de fundo, só geometria) ----------
 let malhaData = null;
@@ -33,18 +33,33 @@ async function carregarMalha(){
 
 function computeBounds(){
   let minLat=90,maxLat=-90,minLon=180,maxLon=-180;
-  const allPts = [];
+  const malhaPts = [];
   (malhaData.features||[]).forEach(f => {
     const coordsList = f.geometry.type === "LineString" ? f.geometry.coordinates
       : f.geometry.type === "Point" ? [f.geometry.coordinates] : [];
-    coordsList.forEach((c) => allPts.push(c));
+    coordsList.forEach((c) => malhaPts.push(c));
   });
-  meusPontos.forEach(p => { if (p.lat && p.lon) allPts.push([p.lon, p.lat]); });
-  allPts.forEach(([lon,lat]) => {
+
+  // A visão principal do mapa é sempre baseada na malha planejada (nunca distorce por causa
+  // de um ponto de teste com GPS incorreto, ex: coletado no computador sem GPS real).
+  const baseSource = malhaPts.length ? malhaPts : meusPontos.filter(p=>p.lat&&p.lon).map(p=>[p.lon,p.lat]);
+  baseSource.forEach(([lon,lat]) => {
     minLat=Math.min(minLat,lat); maxLat=Math.max(maxLat,lat);
     minLon=Math.min(minLon,lon); maxLon=Math.max(maxLon,lon);
   });
-  if (allPts.length === 0) { minLat=-1;maxLat=1;minLon=-1;maxLon=1; }
+  if (baseSource.length === 0) { minLat=-1;maxLat=1;minLon=-1;maxLon=1; }
+
+  // Pontos coletados só entram no enquadramento se estiverem realisticamente perto da malha
+  // (dentro de ~2x o tamanho da área) — evita que um GPS de teste errado "estique" o mapa inteiro.
+  const spanLat = (maxLat-minLat)||0.01, spanLon = (maxLon-minLon)||0.01;
+  const bufferLat = spanLat, bufferLon = spanLon;
+  meusPontos.forEach(p => {
+    if (!p.lat || !p.lon) return;
+    if (p.lat < minLat-bufferLat || p.lat > maxLat+bufferLat || p.lon < minLon-bufferLon || p.lon > maxLon+bufferLon) return;
+    minLat=Math.min(minLat,p.lat); maxLat=Math.max(maxLat,p.lat);
+    minLon=Math.min(minLon,p.lon); maxLon=Math.max(maxLon,p.lon);
+  });
+
   const padFrac = 0.08;
   const latPad = (maxLat-minLat || 0.01) * padFrac, lonPad = (maxLon-minLon || 0.01) * padFrac;
   malhaBounds = { minLat: minLat-latPad, maxLat: maxLat+latPad, minLon: minLon-lonPad, maxLon: maxLon+lonPad };
@@ -76,12 +91,15 @@ let pontosScreen = []; // cache dos pontos coletados na tela, para detectar cliq
 
 function drawMalha(){
   const canvas = document.getElementById("malhaCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext && canvas.getContext("2d");
+  if (!ctx) return; // ambiente sem suporte a canvas
   const dpr = window.devicePixelRatio || 1;
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  if (!cssW || !cssH) return; // canvas ainda oculto/sem tamanho (ex: aba do mapa não aberta)
   if (canvas.width !== cssW*dpr || canvas.height !== cssH*dpr) {
     canvas.width = cssW*dpr; canvas.height = cssH*dpr;
   }
-  const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,cssW,cssH);
   if (!malhaData || !malhaBounds) return;
@@ -249,10 +267,7 @@ document.getElementById("fecharPontoDetalhe").onclick = () => {
   document.getElementById("pontoDetalheModal").style.display = "none";
 };
 
-carregarMalha();
-watchUserPosition();
-atualizarPontosNoMapa();
-setupMapInteraction();
+// (inicialização do mapa movida para o final do arquivo, após todas as declarações)
 
 // ---------- Banco local (IndexedDB) ----------
 const DB_NAME = "aurum_campo_db";
@@ -309,9 +324,15 @@ async function markSynced(localId) {
   });
 }
 
+// ---------- Armazenamento seguro (cai para memória se localStorage indisponível) ----------
+const _memStore = {};
+function safeGet(k){ try { return localStorage.getItem(k); } catch(e){ return _memStore[k] || null; } }
+function safeSet(k,v){ try { localStorage.setItem(k,v); } catch(e){ _memStore[k] = v; } }
+function safeRemove(k){ try { localStorage.removeItem(k); } catch(e){ delete _memStore[k]; } }
+
 // ---------- Configuração (URL do Apps Script) ----------
-function getApiUrl() { return localStorage.getItem("aurum_api_url") || ""; }
-function setApiUrl(u) { localStorage.setItem("aurum_api_url", u); }
+function getApiUrl() { return safeGet("aurum_api_url") || ""; }
+function setApiUrl(u) { safeSet("aurum_api_url", u); }
 
 const setupBanner = document.getElementById("setupBanner");
 const configCard = document.getElementById("configCard");
@@ -328,10 +349,10 @@ document.getElementById("saveConfig").onclick = () => {
 
 // ---------- Login (nome + código de acesso) ----------
 function getUser() {
-  const raw = localStorage.getItem("aurum_user");
+  const raw = safeGet("aurum_user");
   return raw ? JSON.parse(raw) : null;
 }
-function setUser(u) { localStorage.setItem("aurum_user", JSON.stringify(u)); }
+function setUser(u) { safeSet("aurum_user", JSON.stringify(u)); }
 
 const loginGate = document.getElementById("loginGate");
 const appShell = document.getElementById("appShell");
@@ -381,7 +402,7 @@ function entrarNoApp() {
 document.getElementById("logoutBtn").onclick = (e) => {
   e.preventDefault();
   if (!confirm("Trocar de usuário neste aparelho?")) return;
-  localStorage.removeItem("aurum_user");
+  safeRemove("aurum_user");
   location.reload();
 };
 
@@ -564,6 +585,9 @@ function compositeOverlay(rawDataUrl, meta) {
       }
       function finish() { resolve(canvas.toDataURL("image/jpeg", 0.85)); }
     };
+    img.onerror = () => { console.error("Falha ao carregar foto para aplicar marca d'água — salvando foto original."); resolve(rawDataUrl); };
+    // segurança extra: nunca trava o salvamento por mais de 8s esperando a foto processar
+    setTimeout(() => resolve(rawDataUrl), 8000);
     img.src = rawDataUrl;
   });
 }
@@ -671,6 +695,12 @@ async function autoSync() {
   refreshPendingList();
 }
 document.getElementById("syncBtn").onclick = autoSync;
+
+// ---------- Inicialização (após todas as declarações estarem prontas) ----------
+carregarMalha();
+watchUserPosition();
+atualizarPontosNoMapa();
+setupMapInteraction();
 
 // tenta sincronizar ao abrir o app, se já tiver internet
 if (navigator.onLine) autoSync();
